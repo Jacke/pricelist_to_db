@@ -103,18 +103,14 @@
         (if (fetch-header cellReference) 
           ;(ref-set template (conj @template formattedValue))
           (ref-set template (merge {(.charAt cellReference 0) formattedValue} @template))
-        
           (ref-set foo (merge {(fetch-rows cellReference) formattedValue} @foo))))
-
       ;(println "#CellValue: " formattedValue)
       )
     (endRow
       [_]
       ;(println "#EndRow")
       (dosync (ref-set result (merge {@itid, @foo} @result))
-        (swap! itid inc)
-        )
-      )
+        (swap! itid inc)))
     (headerFooter
       [_ text isHeader tagName]
       ;(println "headerFooter" text tagName)
@@ -122,21 +118,36 @@
     
     (startRow
       [_ rowNum]
-      (def foo (ref {}))
-      ;(println "#RowNum: " rowNum)
+      (def foo (ref {})) ;(println "#RowNum: " rowNum)
       )
     SheetListener
     (startSheet
-      [_ name]
-      ;(println "#Sheet: " name)
-      )
+      [_ name] ;(println "#Sheet: " name)
+    )
     (endSheet
-      [_]
-      ;(println "#EndSheet")
-      )))
-
+      [_] ;(println "#EndSheet")
+    )))
+(def speedhandler
+  (reify
+    XSSFSheetXMLHandler$SheetContentsHandler
+    (cell
+      [_ cellReference formattedValue])
+    (endRow
+      [_])
+    (headerFooter
+      [_ text isHeader tagName])
+    (startRow
+      [_ rowNum])
+    SheetListener
+    (startSheet
+      [_ name])
+    (endSheet
+      [_])))
 
 (defn -main
   [fname]
   (with-open [istream (input-stream fname)]
     (read-xls istream myhandler)))
+(defn speed [fname]
+  (with-open [istream (input-stream fname)]
+    (read-xls istream speedhandler)))
