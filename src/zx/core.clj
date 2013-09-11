@@ -18,8 +18,6 @@
   (:require [clojure.core.async :refer :all])
   (:gen-class))
 
-
-
 (defn- file-type
   [istream opt]
   (when (.markSupported istream)
@@ -75,58 +73,41 @@
 (def template (ref {}))
 (def foo (ref {}))
 (def result (ref {}))
-(def itid (atom 0))
+(def itid (atom 0)) ; Counter of items
 ; Simulate db call for retrive header 
 (def template_header {"Заказ шт" "count", "ONPP" "onpp", "Автор" "author", "Название" "title", "Стд" "std", "Цена Опт.грн" "price", "Издательство" "publisher", "Пер." "translate", "Год" "year", "Жанр" "genre", "Серия" "series", "Формат" "format", "ISBN" "isbn", "Стр." "pages", "TOV_KOD" "article", "с НДС,без НДС" "pricetax", "EAN" "ean", "Категория" "category", "NAIMEN" "header"})
 
 (defn fetch-header [cellref]
+  "Take First letter and compare it to headers that are in price list template."
 (= 1 (first (map #(java.lang.Integer/parseInt (% 0)) 
      (re-seq #"\d+(\.\d+)?" cellref)))))
-; ["Person Id" "Name" "Height" "Email Address" "DOB"] : Compare row letter
-; ["A*"        "B*"   "C*"     "D*"            "E*" ] : to template
 
-(defn fetch-rows [cellref]
-  (template_header                    ; type in db
-     (@template (.charAt cellref 0))) ; type in sheet
-                  
+(defn fetch-rows [cellref] 
+  "Match sheet field with db field and replate it."
+  (template_header                     
+     (@template (.charAt cellref 0))))
 
-)
-
-; Return a header
 
 (def myhandler
   (reify
     XSSFSheetXMLHandler$SheetContentsHandler
-    (cell
-      [_ cellReference formattedValue]
+    (cell [_ cellReference formattedValue]
       (dosync
         (if (fetch-header cellReference) 
-          ;(ref-set template (conj @template formattedValue))
           (ref-set template (merge {(.charAt cellReference 0) formattedValue} @template))
-          (ref-set foo (merge {(fetch-rows cellReference) formattedValue} @foo))))
-      ;(println "#CellValue: " formattedValue)
-      )
-    (endRow
-      [_]
-      ;(println "#EndRow")
-      (dosync (ref-set result (merge {@itid, @foo} @result))
-        (swap! itid inc)))
-    (headerFooter
-      [_ text isHeader tagName]
-      ;(println "headerFooter" text tagName)
-      )
-    
-    (startRow
-      [_ rowNum]
-      (def foo (ref {})) ;(println "#RowNum: " rowNum)
-      )
+          (ref-set foo (merge {(fetch-rows cellReference) formattedValue} @foo))
+        )))
+    (endRow [_]
+      (dosync 
+         (ref-set result (merge {@itid, @foo} @result))
+         (swap! itid inc))
+    ) 
+    (headerFooter [_ text isHeader tagName])
+    (startRow [_ rowNum] (def foo (ref {})))  ;(println "#RowNum: " rowNum)
     SheetListener
-    (startSheet
-      [_ name] ;(println "#Sheet: " name)
-    )
-    (endSheet
-      [_] ;(println "#EndSheet")
-    )))
+    (startSheet [_ name] )
+    (endSheet [_] )))
+
 (def speedhandler
   (reify
     XSSFSheetXMLHandler$SheetContentsHandler
